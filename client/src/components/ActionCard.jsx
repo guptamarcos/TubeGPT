@@ -1,4 +1,4 @@
-import {FileText,BookOpen ,ListChecks,MessageCircle,HelpCircle, Download } from "lucide-react";
+import { FileText, BookOpen, ListChecks, MessageCircle, HelpCircle, Download } from "lucide-react";
 
 const actions = [
   {
@@ -46,7 +46,10 @@ const actions = [
 ];
 
 export function ActionCard() {
-  return (
+  return (<>
+    <h2 className="text-xl font-semibold text-gray-900 text-center mb-6">
+      What would you like to do?
+    </h2>
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
       {actions.map(({ title, description, icon: Icon, bg, color }) => (
         <button
@@ -69,6 +72,7 @@ export function ActionCard() {
         </button>
       ))}
     </div>
+  </>
   )
 };
 

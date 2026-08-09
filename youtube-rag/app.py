@@ -1,6 +1,5 @@
 import os
 import re
-import asyncio
 
 from dotenv import load_dotenv
 
@@ -8,11 +7,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from youtube_transcript_api import (
-    YouTubeTranscriptApi,
-    NoTranscriptFound,
-    TranscriptsDisabled,
-)
+from youtube_transcript_api import YouTubeTranscriptApi
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
@@ -31,153 +26,89 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# LLM
 llm = ChatGoogleGenerativeAI(
     model="gemini-3.5-flash-lite",
     temperature=0.2,
 )
 
-prompt = ChatPromptTemplate.from_template(
-    """
+prompt = ChatPromptTemplate.from_template("""
 You are an expert YouTube video summarizer.
 
 Summarize the following transcript.
 
-Rules:
-- Use simple English.
-- Use headings.
-- Use bullet points.
-- Ignore filler words.
-- Maximum 500 words.
+Use:
+- Headings
+- Bullet points
+- Simple English
 
 Transcript:
-
 {transcript}
-"""
-)
+""")
 
 chain = prompt | llm | StrOutputParser()
 
-
-# ---------------------------
-# Request Model
-# ---------------------------
 
 class VideoRequest(BaseModel):
     url: str
 
 
-# ---------------------------
-# Helpers
-# ---------------------------
-
-def extract_video_id(url: str):
-    patterns = [
-        r"v=([a-zA-Z0-9_-]{11})",
-        r"youtu\.be\/([a-zA-Z0-9_-]{11})",
-        r"shorts\/([a-zA-Z0-9_-]{11})",
-    ]
-
-    for pattern in patterns:
-        match = re.search(pattern, url)
-
-        if match:
-            return match.group(1)
-
-    raise HTTPException(
-        status_code=400,
-        detail="Invalid YouTube URL"
-    )
-
-
-def fetch_transcript(video_id: str):
-    api = YouTubeTranscriptApi()
-
-    transcript = api.fetch(video_id)
-
-    transcript_text = " ".join(
-        snippet.text
-        for snippet in transcript
-    )
-
-    return transcript_text
-
-
-async def summarize_chunk(chunk: str):
-    return await chain.ainvoke(
-        {
-            "transcript": chunk
-        }
-    )
-
-
-# ---------------------------
-# Routes
-# ---------------------------
-
 @app.get("/")
 def home():
-    return {
-        "message": "TubeGPT API Running"
-    }
+    return {"message": "TubeGPT API Running"}
 
 
 @app.post("/api/v1/summarize")
-async def summarize_video(data: VideoRequest):
+def summarize_video(data: VideoRequest):
 
-    video_id = extract_video_id(data.url)
+    # Extract Video ID
+    match = re.search(r"(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})", data.url)
+
+    if not match:
+        raise HTTPException(status_code=400, detail="Invalid URL")
+
+    video_id = match.group(1)
 
     try:
-        # Run synchronous transcript fetching in a background thread
-        transcript = await asyncio.to_thread(
-            fetch_transcript,
-            video_id
-        )
+        transcript = YouTubeTranscriptApi().fetch(video_id)
 
-    except (NoTranscriptFound, TranscriptsDisabled):
-
+    except Exception:
         raise HTTPException(
             status_code=404,
-            detail="Transcript not available for this video."
+            detail="Transcript not found"
         )
 
-    except Exception as e:
+    transcript_text = ""
 
-        print(e)
-
-        raise HTTPException(
-            status_code=500,
-            detail=str(e)
-        )
+    for item in transcript:
+        transcript_text += item.text + " "
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=12000,
-        chunk_overlap=1200,
+        chunk_overlap=1000
     )
 
-    chunks = splitter.split_text(transcript)
+    chunks = splitter.split_text(transcript_text)
 
-    tasks = [
-        summarize_chunk(chunk)
-        for chunk in chunks
-    ]
+    summaries = []
 
-    partial_summaries = await asyncio.gather(*tasks)
+    for chunk in chunks:
+        summary = chain.invoke({
+            "transcript": chunk
+        })
+        summaries.append(summary)
 
-    if len(partial_summaries) == 1:
-
-        final_summary = partial_summaries[0]
+    if len(summaries) == 1:
+        final_summary = summaries[0]
 
     else:
+        combined_summary = "\n\n".join(summaries)
 
-        combined = "\n\n".join(partial_summaries)
-
-        final_summary = await chain.ainvoke(
-            {
-                "transcript": combined
-            }
-        )
+        final_summary = chain.invoke({
+            "transcript": combined_summary
+        })
 
     return {
         "video_id": video_id,
-        "summary": final_summary,
+        "summary": final_summary
     }

@@ -1,32 +1,10 @@
 import { useState } from "react";
-import {
-  Link2,
-  Sparkles,
-  LoaderCircle,
-  Trash2,
-  Eraser,
-} from "lucide-react";
+import { Link2, Sparkles, LoaderCircle, Trash2, Eraser } from "lucide-react";
 import { toast } from "react-toastify";
 
-import ActionCard from "../components/ActionCard.jsx";
+import { ActionCard, Loader,Navbar } from "../components/Index.jsx";
 import { getSummary } from "../api/Video.js";
-import { Navbar } from "../components/Navbar.jsx";
-
-function isYouTubeUrl(url) {
-  try {
-    const parsedUrl = new URL(url);
-    const hostname = parsedUrl.hostname.replace("www.", "");
-
-    return [
-      "youtube.com",
-      "youtu.be",
-      "m.youtube.com",
-      "music.youtube.com",
-    ].includes(hostname);
-  } catch {
-    return false;
-  }
-}
+import isYouTubeUrl from "../utils/isYouTubeUrl.js";
 
 export default function YouTubeSummarizerPage() {
   const [url, setUrl] = useState("");
@@ -58,7 +36,7 @@ export default function YouTubeSummarizerPage() {
 
       toast.error(
         err?.response?.data?.detail ||
-          "Unable to generate summary."
+        "Unable to generate summary."
       );
     } finally {
       setLoading(false);
@@ -76,9 +54,8 @@ export default function YouTubeSummarizerPage() {
 
   return (
     <main className="min-h-screen w-full bg-gray-50">
-      
-      <Navbar/>
-      {/* Main */}
+
+      <Navbar />
 
       <div className="max-w-5xl mx-auto px-6 sm:px-10 py-14">
         <div className="text-center mb-10">
@@ -93,7 +70,6 @@ export default function YouTubeSummarizerPage() {
           </p>
         </div>
 
-        {/* Input */}
 
         <form
           onSubmit={handleSummarize}
@@ -115,11 +91,10 @@ export default function YouTubeSummarizerPage() {
           <button
             type="submit"
             disabled={loading}
-            className={`flex items-center gap-2 px-6 py-3 rounded-xl text-white text-sm font-medium transition shrink-0 ${
-              loading
-                ? "bg-gray-400 cursor-not-allowed"
-                : "bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 cursor-pointer"
-            }`}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl text-white text-sm font-medium transition ${loading
+              ? "bg-gray-400"
+              : "bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 cursor-pointer"
+              }`}
           >
             {loading ? (
               <>
@@ -147,25 +122,7 @@ export default function YouTubeSummarizerPage() {
           </a>
         </p>
 
-        {/* Loading */}
-
-        {loading && (
-          <div className="flex flex-col items-center justify-center py-20">
-            <LoaderCircle className="w-14 h-14 text-violet-600 animate-spin mb-6" />
-
-            <h2 className="text-2xl font-semibold text-gray-900 mb-2">
-              Extracting Summary...
-            </h2>
-
-            <p className="text-gray-500 text-center max-w-md">
-              Fetching transcript, analyzing
-              content and generating your AI
-              summary.
-            </p>
-          </div>
-        )}
-
-        {/* Summary */}
+        {loading && <Loader/>}
 
         {!loading && summary && (
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
@@ -200,13 +157,7 @@ export default function YouTubeSummarizerPage() {
         )}
 
         {!loading && !summary && (
-          <>
-            <h2 className="text-xl font-semibold text-gray-900 text-center mb-6">
-              What would you like to do?
-            </h2>
-
-            <ActionCard />
-          </>
+          <ActionCard />
         )}
       </div>
     </main>
